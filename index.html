@@ -80,8 +80,8 @@ h2{margin:0 0 4px;font-size:20px;font-weight:900;color:var(--navy)}
 .bar{height:14px;background:#fff;border:3px solid var(--navy);margin-top:8px}
 .bar i{display:block;height:100%;background:var(--red)}
 .pass{background:var(--red);color:#fff;border:3px double #fff;outline:3px solid var(--red);font-weight:900;padding:2px 12px;transform:rotate(4deg);letter-spacing:.1em}
-.stamps{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-top:14px}
-.stamp{position:relative;aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#fff;border:3px solid var(--navy);border-radius:50%;color:var(--navy);font-weight:900;font-size:18px;line-height:1;padding:0}
+.stamps{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:6px;margin-top:14px}
+.stamp{position:relative;min-width:0;aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#fff;border:3px solid var(--navy);border-radius:50%;color:var(--navy);font-weight:900;font-size:clamp(12px,4.2vw,18px);line-height:1;padding:0}
 .stamp small{font-size:10px;margin-top:1px}
 .stamp.done{background:var(--red);color:#fff}
 .stamp.done b{position:absolute;top:-9px;right:-5px;font-size:15px;color:var(--navy);text-shadow:0 0 0 #fff,1px 1px 0 #fff,-1px -1px 0 #fff,1px -1px 0 #fff,-1px 1px 0 #fff}
@@ -151,8 +151,8 @@ h2{margin:0 0 4px;font-size:20px;font-weight:900;color:var(--navy)}
 code.out{display:block;word-break:break-all;background:#fff;border:2px dashed var(--navy);padding:8px;margin-top:10px;font-size:12px;user-select:all}
 
 .vpanel{margin-top:12px;padding:12px;background:#fff;border:3px solid var(--navy);border-radius:4px}
-.vweeks{display:grid;grid-template-columns:repeat(6,1fr);gap:6px}
-.vw{padding:7px 0;font-weight:900;font-size:15px;border:2px solid var(--navy);background:var(--cream);color:var(--navy);border-radius:4px}
+.vweeks{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:6px}
+.vw{min-width:0;padding:7px 0;font-weight:900;font-size:clamp(12px,3.6vw,15px);border:2px solid var(--navy);background:var(--cream);color:var(--navy);border-radius:4px}
 .vw.done{background:var(--red);color:#fff}
 .vw.none{opacity:.45;border-style:dashed}
 .vw.on{outline:3px solid var(--navy);outline-offset:1px;opacity:1}
@@ -215,7 +215,7 @@ const CONFIG = {
   RECRUIT_REWARD: 1000,
   MUFO_REWARD: 10000,
   ALLOW_PAST_EDIT: true,         // true = 過去的週次可以補登；false = 只能填本週
-  ADMIN_HASH: '575b6a37c98cff23201ad03cfb8babb918075a0b4120f57d3f4a6f69d08069be'                 // 後台密碼代碼：打開網址後面加 #admin，照畫面產生後貼在這裡
+  ADMIN_HASH: ''                 // 後台密碼代碼：打開網址後面加 #admin，照畫面產生後貼在這裡
 };
 
 const LEADERS = [
@@ -706,6 +706,43 @@ function viewerHTML(key){
     '<details><summary>招募證明（' + rc.length + ' 張）</summary><div class="in">' + viewShots(rc) + '</div></details>' +
     '<details><summary>MUFO 完成畫面（' + (mu.length ? '已上傳' : '未上傳') + '）</summary><div class="in">' + viewShots(mu) + '</div></details></div>';
 }
+async function seedDemoData(){
+  if(isDemo) return;
+  if(!confirm('要產生示範成績嗎？會把全部隊員（約 150+ 人）的隨機進度寫入「團隊成績」，方便展示，之後可以一次清除。')) return;
+  busy(true);
+  try{
+    const patch = {};
+    LEADERS.forEach(l => {
+      teamNames(l.name).forEach(n => {
+        const r = Math.random();
+        let cnt;
+        if(r < 0.15) cnt = 0;
+        else if(r < 0.7) cnt = 1 + Math.floor(Math.random() * 9);
+        else cnt = 10 + Math.floor(Math.random() * 3);
+        const done = Array.from({length: Math.min(cnt, CONFIG.WEEKS)}, (_, i) => i + 1);
+        patch[keyOf(l.name, n)] = {leader: l.name, name: n, done, n: done.length, demo: true, at: Date.now()};
+      });
+    });
+    await dbReq('PATCH', 'summary', patch);
+    toast('示範成績已產生 ✓');
+  }catch(e){ console.error(e); toast('產生失敗，請再試一次', true); }
+  busy(false);
+  if(S.screen === 'standings'){ R.progs = {}; R.view = null; renderStandings(); }
+}
+async function clearDemoData(){
+  if(isDemo) return;
+  if(!confirm('要清除示範成績嗎？只會刪除標記為示範的資料。')) return;
+  busy(true);
+  try{
+    const all = (await dbReq('GET', 'summary')) || {};
+    const patch = {};
+    Object.keys(all).forEach(k => { if(all[k] && all[k].demo) patch[k] = null; });
+    if(Object.keys(patch).length) await dbReq('PATCH', 'summary', patch);
+    toast('示範成績已清除 ✓');
+  }catch(e){ console.error(e); toast('清除失敗，請再試一次', true); }
+  busy(false);
+  if(S.screen === 'standings'){ R.progs = {}; R.view = null; renderStandings(); }
+}
 async function toggleView(name){
   const key = keyOf(R.leader, name);
   if(R.view && R.view.key === key){ R.view = null; paintStandings(); return; }
@@ -817,6 +854,9 @@ function renderAdmin(){
   if(!A.leader){ const l = LEADERS.find(x => membersOf(x.name)) || LEADERS[0]; A.leader = l.name; }
   $('app').innerHTML = heroHTML(true) + '<main class="wrap">' +
     '<section><div class="me"><div><b>後台</b><small>' + (isDemo ? '示範模式：免密碼，資料在這台裝置' : '調整週次、刪除照片') + '</small></div><button data-act="adm-out">' + (isDemo ? '回打卡頁' : '退出') + '</button></div></section>' +
+    (isDemo ? '' : '<section><div class="card"><span class="tag red">示範資料</span>' +
+      '<p class="note" style="margin:0 0 10px">在「團隊成績」灌入隨機進度方便展示，示範結束後按右邊按鈕一次清除，只會清掉標記為示範的資料，不會動到真實打卡。</p>' +
+      '<div class="row" style="gap:10px"><button class="btn small" data-act="adm-demo-seed">🎲 產生示範成績</button><button class="btn ghost small" data-act="adm-demo-clear">🧹 清除示範成績</button></div></div></section>') +
     '<section><div class="card"><span class="tag red">選隊員</span>' +
     '<label class="lbl" for="adm-leader">隊長</label><select class="sel" id="adm-leader" data-adm="leader">' +
     LEADERS.map(l => '<option value="' + esc(l.name) + '"' + (l.name === A.leader ? ' selected' : '') + '>' + esc(l.name) + (l.role ? '（大隊長）' : '') + '</option>').join('') + '</select>' +
@@ -940,6 +980,8 @@ document.addEventListener('click', e => {
     case 'adm-del':   admDelete(el); break;
     case 'adm-mv':    admMove(el); break;
     case 'adm-clear': admClear(+el.dataset.w); break;
+    case 'adm-demo-seed': seedDemoData(); break;
+    case 'adm-demo-clear': clearDemoData(); break;
   }
 });
 document.addEventListener('change', e => {
