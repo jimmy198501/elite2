@@ -569,17 +569,19 @@ function paintMufo(){
 
 function paintReward(){
   const n = doneWeeks(), passed = n >= CONFIG.PASS, r = recruitCount(), m = !!(S.prog.mufo && S.prog.mufo.url);
+  /* 達成 MUFO 後，招募獎勵＋MUFO 獎金合併計算，總共封頂在 MUFO_REWARD；未達成 MUFO 時，招募獎勵不封頂 */
+  const combined = m ? CONFIG.MUFO_REWARD : r * CONFIG.RECRUIT_REWARD;
+  const sub = m ? ('招募 ' + r + ' 人，已達成 MUFO，獎金封頂 $' + fmt(CONFIG.MUFO_REWARD)) : (r > 0 ? ('招募 ' + r + ' 人，每人 $' + fmt(CONFIG.RECRUIT_REWARD)) : '尚未招募，也尚未完成 MUFO');
   $('reward').innerHTML = '<div class="card"><span class="tag">我的獎勵</span>' +
     '<ul class="rw">' +
     '<li class="' + (passed ? 'on' : '') + '"><span>工作量達標返還</span><b>' + (passed ? '$' + fmt(CONFIG.REFUND) : '還差 ' + (CONFIG.PASS - n) + ' 週') + '</b></li>' +
-    '<li class="' + (r > 0 ? 'on' : '') + '"><span>招募獎勵（' + r + ' 人）</span><b>$' + fmt(r * CONFIG.RECRUIT_REWARD) + '</b></li>' +
-    '<li class="' + (m ? 'on' : '') + '"><span>MUFO 榮譽獎金</span><b>' + (m ? '$' + fmt(CONFIG.MUFO_REWARD) : '未完成') + '</b></li></ul>' +
+    '<li class="' + ((m || r > 0) ? 'on' : '') + '"><span>招募＋MUFO 獎勵<br><small style="font-weight:700;color:var(--mut)">' + sub + '</small></span><b>$' + fmt(combined) + '</b></li></ul>' +
     '<p class="note">報名費 $' + CONFIG.FEE + '。以上為系統依活動規則試算。</p>' +
     '<details><summary>獎勵辦法</summary><div class="in">' +
     '<div class="tier"><b>達成工作量</b><br>返還 $' + fmt(CONFIG.REFUND) + '</div>' +
     '<div class="tier"><b>達成工作量 ＋ 招募 1 人以上</b><br>返還 $' + fmt(CONFIG.REFUND) + '，每招募 1 人額外獲得 $' + fmt(CONFIG.RECRUIT_REWARD) + '</div>' +
     '<div class="tier"><b>未達工作量 ＋ 招募 1 人以上</b><br>每招募 1 人仍可獲得 $' + fmt(CONFIG.RECRUIT_REWARD) + '</div>' +
-    '<div class="tier"><b>MUFO 榮譽獎勵</b><br>達成 MUFO 者獲頒 $' + fmt(CONFIG.MUFO_REWARD) + '</div>' +
+    '<div class="tier"><b>達成 MUFO</b><br>招募獎勵＋MUFO 獎金合併計算，總共封頂 $' + fmt(CONFIG.MUFO_REWARD) + '，不會再往上加</div>' +
     '</div></details></div>';
 }
 
